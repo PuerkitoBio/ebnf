@@ -25,9 +25,10 @@ package ebnf
 import (
 	"errors"
 	"fmt"
-	"text/scanner"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/PuerkitoBio/ebnf/scanner"
 )
 
 // ----------------------------------------------------------------------------
@@ -82,6 +83,7 @@ type (
 	Token struct {
 		StringPos scanner.Position
 		String    string
+		Regexp    bool
 	}
 
 	// A List node represents a range of characters.

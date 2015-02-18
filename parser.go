@@ -57,19 +57,19 @@ func (p *parser) parseIdentifier() *Name {
 	return &Name{pos, name}
 }
 
-func (p *parser) parseToken() *Token {
+func (p *parser) parseToken(t rune) *Token {
 	pos := p.pos
 	value := ""
-	if p.tok == scanner.String {
+	if p.tok == t {
 		value, _ = strconv.Unquote(p.lit)
 		// Unquote may fail with an error, but only if the scanner found
 		// an illegal string in the first place. In this case the error
 		// has already been reported.
 		p.next()
 	} else {
-		p.expect(scanner.String)
+		p.expect(t)
 	}
-	return &Token{pos, value}
+	return &Token{pos, value, t == scanner.Regexp}
 }
 
 // ParseTerm returns nil if no term was found.
@@ -81,13 +81,16 @@ func (p *parser) parseTerm() (x Expression) {
 		x = p.parseIdentifier()
 
 	case scanner.String:
-		tok := p.parseToken()
+		tok := p.parseToken(p.tok)
 		x = tok
 		const ellipsis = '…' // U+2026, the horizontal ellipsis character
 		if p.tok == ellipsis {
 			p.next()
-			x = &Range{tok, p.parseToken()}
+			x = &Range{tok, p.parseToken(scanner.String)}
 		}
+
+	case scanner.Regexp:
+		x = p.parseToken(p.tok)
 
 	case '(':
 		p.next()
