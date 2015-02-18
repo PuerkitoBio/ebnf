@@ -7,7 +7,8 @@ package ebnf
 import (
 	"io"
 	"strconv"
-	"text/scanner"
+
+	"github.com/PuerkitoBio/ebnf/scanner"
 )
 
 type parser struct {

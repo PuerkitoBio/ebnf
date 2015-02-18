@@ -80,6 +80,7 @@ const (
 	ScanStrings    = 1 << -String
 	ScanRawStrings = 1 << -RawString
 	ScanComments   = 1 << -Comment
+	ScanRegexp     = 1 << -Regexp
 	SkipComments   = 1 << -skipComment // if set with ScanComments, comments become white space
 	GoTokens       = ScanIdents | ScanFloats | ScanChars | ScanStrings | ScanRawStrings | ScanComments | SkipComments
 )
@@ -94,6 +95,7 @@ const (
 	String
 	RawString
 	Comment
+	Regexp
 	skipComment
 )
 
