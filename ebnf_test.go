@@ -22,6 +22,7 @@ var goodGrammars = []string{
 	`Program = "a" | "b" "c" .`,
 
 	`Program = "a" … "z" .`,
+	`Program = "(" … ")" .`,
 
 	`Program = /[a-x]/ .`,
 
