@@ -15,9 +15,15 @@ var goodGrammars = []string{
 	`Program = foo .
 	 foo = "foo" .`,
 
+	`Program = Foo .
+	 Foo = /foo/ | Bar .
+	 Bar = "z" .`,
+
 	`Program = "a" | "b" "c" .`,
 
 	`Program = "a" … "z" .`,
+
+	`Program = /[a-x]/ .`,
 
 	`Program = Song .
 	 Song = { Note } .
@@ -26,7 +32,7 @@ var goodGrammars = []string{
 	 Re = "d" .
 	 Mi = "e" .
 	 Fa = "f" .
-	 So = "g" .
+	 So = /g|G/ .
 	 La = "a" .
 	 Ti = ti .
 	 ti = "b" .`,
@@ -37,6 +43,7 @@ var badGrammars = []string{
 	`Program = | b .`,
 	`Program = a … b .`,
 	`Program = "a" … .`,
+	`Program = "a" … /\n/ .`,
 	`Program = … "b" .`,
 	`Program = () .`,
 	`Program = [] .`,
@@ -59,6 +66,7 @@ func checkBad(t *testing.T, src string) {
 	if err == nil {
 		t.Errorf("Parse(%s) should have failed", src)
 	}
+	t.Log(err)
 }
 
 func TestGrammars(t *testing.T) {

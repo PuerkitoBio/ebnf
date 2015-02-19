@@ -62,10 +62,15 @@ func (p *parser) parseToken(t rune) *Token {
 	pos := p.pos
 	value := ""
 	if p.tok == t {
-		value, _ = strconv.Unquote(p.lit)
-		// Unquote may fail with an error, but only if the scanner found
-		// an illegal string in the first place. In this case the error
-		// has already been reported.
+		if t == scanner.Regexp {
+			// A Regexp literal is whatever's inside the forward slashes.
+			value = p.lit[1 : len(p.lit)-2]
+		} else {
+			value, _ = strconv.Unquote(p.lit)
+			// Unquote may fail with an error, but only if the scanner found
+			// an illegal string in the first place. In this case the error
+			// has already been reported.
+		}
 		p.next()
 	} else {
 		p.expect(t)
