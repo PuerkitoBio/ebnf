@@ -7,6 +7,7 @@ package ebnf
 import (
 	"io"
 	"strconv"
+	"strings"
 
 	"github.com/PuerkitoBio/ebnf/scanner"
 )
@@ -58,13 +59,26 @@ func (p *parser) parseIdentifier() *Name {
 	return &Name{pos, name}
 }
 
+func regexpUnquote(s string) string {
+	s = s[1 : len(s)-1]
+
+	// avoid alloc if not required
+	ix := strings.Index(s, "/")
+	if ix < 0 {
+		return s
+	}
+	// all slashes in the string are necessarily escaped, so replace all
+	return strings.Replace(s, "\\/", "/", -1)
+}
+
 func (p *parser) parseToken(t rune) *Token {
 	pos := p.pos
 	value := ""
 	if p.tok == t {
 		if t == scanner.Regexp {
 			// A Regexp literal is whatever's inside the forward slashes.
-			value = p.lit[1 : len(p.lit)-1]
+			// Escaped forward slashes must be unescaped.
+			value = regexpUnquote(p.lit)
 		} else {
 			value, _ = strconv.Unquote(p.lit)
 			// Unquote may fail with an error, but only if the scanner found
