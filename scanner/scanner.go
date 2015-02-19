@@ -8,20 +8,9 @@
 // existing tools, the NUL character is not allowed. If the first character
 // in the source is a UTF-8 encoded byte order mark (BOM), it is discarded.
 //
-// By default, a Scanner skips white space and Go comments and recognizes all
-// literals as defined by the Go language specification.  It may be
-// customized to recognize only a subset of those literals and to recognize
-// different identifier and white space characters.
-//
-// Basic usage pattern:
-//
-//	var s scanner.Scanner
-//	s.Init(src)
-//	tok := s.Scan()
-//	for tok != scanner.EOF {
-//		// do something with tok
-//		tok = s.Scan()
-//	}
+// It skips white space and Go comments and recognizes all
+// literals as defined by the Go language specification, as well as
+// regular expressions literals enclosed in forward slashes.
 //
 package scanner
 
@@ -55,35 +44,10 @@ func (pos Position) String() string {
 		s += fmt.Sprintf("%d:%d", pos.Line, pos.Column)
 	}
 	if s == "" {
-		s = "???"
+		s = "?"
 	}
 	return s
 }
-
-// Predefined mode bits to control recognition of tokens. For instance,
-// to configure a Scanner such that it only recognizes (Go) identifiers,
-// integers, and skips comments, set the Scanner's Mode field to:
-//
-//	ScanIdents | ScanInts | SkipComments
-//
-// With the exceptions of comments, which are skipped if SkipComments is
-// set, unrecognized tokens are not ignored. Instead, the scanner simply
-// returns the respective individual characters (or possibly sub-tokens).
-// For instance, if the mode is ScanIdents (not ScanStrings), the string
-// "foo" is scanned as the token sequence '"' Ident '"'.
-//
-const (
-	ScanIdents     = 1 << -Ident
-	ScanInts       = 1 << -Int
-	ScanFloats     = 1 << -Float // includes Ints
-	ScanChars      = 1 << -Char
-	ScanStrings    = 1 << -String
-	ScanRawStrings = 1 << -RawString
-	ScanComments   = 1 << -Comment
-	ScanRegexp     = 1 << -Regexp
-	SkipComments   = 1 << -skipComment // if set with ScanComments, comments become white space
-	GoTokens       = ScanIdents | ScanFloats | ScanChars | ScanStrings | ScanRawStrings | ScanComments | SkipComments
-)
 
 // The result of Scan is one of the following tokens or a Unicode character.
 const (
@@ -108,6 +72,7 @@ var tokenString = map[rune]string{
 	String:    "String",
 	RawString: "RawString",
 	Comment:   "Comment",
+	Regexp:    "Regexp",
 }
 
 // TokenString returns a printable string for a token or Unicode character.
@@ -159,24 +124,6 @@ type Scanner struct {
 	// ErrorCount is incremented by one for each error encountered.
 	ErrorCount int
 
-	// The Mode field controls which tokens are recognized. For instance,
-	// to recognize Ints, set the ScanInts bit in Mode. The field may be
-	// changed at any time.
-	Mode uint
-
-	// The Whitespace field controls which characters are recognized
-	// as white space. To recognize a character ch <= ' ' as white space,
-	// set the ch'th bit in Whitespace (the Scanner's behavior is undefined
-	// for values ch > ' '). The field may be changed at any time.
-	Whitespace uint64
-
-	// IsIdentRune is a predicate controlling the characters accepted
-	// as the ith rune in an identifier. The set of valid characters
-	// must not intersect with the set of white space characters.
-	// If no IsIdentRune function is set, regular Go identifiers are
-	// accepted instead. The field may be changed at any time.
-	IsIdentRune func(ch rune, i int) bool
-
 	// Start position of most recently scanned token; set by Scan.
 	// Calling Init or Next invalidates the position (Line == 0).
 	// The Filename field is always left untouched by the Scanner.
@@ -215,8 +162,6 @@ func (s *Scanner) Init(src io.Reader) *Scanner {
 	// initialize public fields
 	s.Error = nil
 	s.ErrorCount = 0
-	s.Mode = GoTokens
-	s.Whitespace = GoWhitespace
 	s.Line = 0 // invalidate token position
 
 	return s
@@ -348,9 +293,6 @@ func (s *Scanner) error(msg string) {
 }
 
 func (s *Scanner) isIdentRune(ch rune, i int) bool {
-	if s.IsIdentRune != nil {
-		return s.IsIdentRune(ch, i)
-	}
 	return ch == '_' || unicode.IsLetter(ch) || unicode.IsDigit(ch) && i > 0
 }
 
@@ -427,7 +369,7 @@ func (s *Scanner) scanNumber(ch rune) (rune, rune) {
 				}
 				ch = s.next()
 			}
-			if s.Mode&ScanFloats != 0 && (ch == '.' || ch == 'e' || ch == 'E') {
+			if ch == '.' || ch == 'e' || ch == 'E' {
 				// float
 				ch = s.scanFraction(ch)
 				ch = s.scanExponent(ch)
@@ -442,7 +384,7 @@ func (s *Scanner) scanNumber(ch rune) (rune, rune) {
 	}
 	// decimal int or float
 	ch = s.scanMantissa(ch)
-	if s.Mode&ScanFloats != 0 && (ch == '.' || ch == 'e' || ch == 'E') {
+	if ch == '.' || ch == 'e' || ch == 'E' {
 		// float
 		ch = s.scanFraction(ch)
 		ch = s.scanExponent(ch)
@@ -558,7 +500,7 @@ func (s *Scanner) Scan() rune {
 
 redo:
 	// skip white space
-	for s.Whitespace&(1<<uint(ch)) != 0 {
+	for GoWhitespace&(1<<uint(ch)) != 0 {
 		ch = s.next()
 	}
 
@@ -585,55 +527,37 @@ redo:
 	tok := ch
 	switch {
 	case s.isIdentRune(ch, 0):
-		if s.Mode&ScanIdents != 0 {
-			tok = Ident
-			ch = s.scanIdentifier()
-		} else {
-			ch = s.next()
-		}
+		tok = Ident
+		ch = s.scanIdentifier()
 	case isDecimal(ch):
-		if s.Mode&(ScanInts|ScanFloats) != 0 {
-			tok, ch = s.scanNumber(ch)
-		} else {
-			ch = s.next()
-		}
+		tok, ch = s.scanNumber(ch)
 	default:
 		switch ch {
 		case '"':
-			if s.Mode&ScanStrings != 0 {
-				s.scanString('"')
-				tok = String
-			}
+			s.scanString('"')
+			tok = String
 			ch = s.next()
 		case '\'':
-			if s.Mode&ScanChars != 0 {
-				s.scanChar()
-				tok = Char
-			}
+			s.scanChar()
+			tok = Char
 			ch = s.next()
 		case '.':
 			ch = s.next()
-			if isDecimal(ch) && s.Mode&ScanFloats != 0 {
+			if isDecimal(ch) {
 				tok = Float
 				ch = s.scanMantissa(ch)
 				ch = s.scanExponent(ch)
 			}
 		case '/':
 			ch = s.next()
-			if (ch == '/' || ch == '*') && s.Mode&ScanComments != 0 {
-				if s.Mode&SkipComments != 0 {
-					s.tokPos = -1 // don't collect token text
-					ch = s.scanComment(ch)
-					goto redo
-				}
+			if ch == '/' || ch == '*' {
+				s.tokPos = -1 // don't collect token text
 				ch = s.scanComment(ch)
-				tok = Comment
+				goto redo
 			}
 		case '`':
-			if s.Mode&ScanRawStrings != 0 {
-				s.scanRawString()
-				tok = String
-			}
+			s.scanRawString()
+			tok = String
 			ch = s.next()
 		default:
 			ch = s.next()

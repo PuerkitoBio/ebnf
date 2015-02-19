@@ -164,7 +164,6 @@ func (p *parser) parseProduction() *Production {
 
 func (p *parser) parse(filename string, src io.Reader) Grammar {
 	p.scanner.Init(src)
-	p.scanner.Mode = scanner.GoTokens | scanner.ScanRegexp
 	p.scanner.Filename = filename
 	p.next() // initializes pos, tok, lit
 

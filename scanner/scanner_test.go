@@ -262,13 +262,12 @@ func countNewlines(s string) int {
 	return n
 }
 
-func testScan(t *testing.T, mode uint) {
+func testScan(t *testing.T) {
 	s := new(Scanner).Init(makeSource(" \t%s\n"))
-	s.Mode = mode
 	tok := s.Scan()
 	line := 1
 	for _, k := range tokenList {
-		if mode&SkipComments == 0 || k.tok != Comment {
+		if k.tok != Comment {
 			checkTok(t, s, line, tok, k.tok, k.text)
 			tok = s.Scan()
 		}
@@ -278,105 +277,36 @@ func testScan(t *testing.T, mode uint) {
 }
 
 func TestScan(t *testing.T) {
-	testScan(t, GoTokens)
-	testScan(t, GoTokens&^SkipComments)
+	testScan(t)
 }
 
 func TestPosition(t *testing.T) {
 	src := makeSource("\t\t\t\t%s\n")
 	s := new(Scanner).Init(src)
-	s.Mode = GoTokens &^ SkipComments
 	s.Scan()
 	pos := Position{"", 4, 1, 5}
 	for _, k := range tokenList {
-		if s.Offset != pos.Offset {
-			t.Errorf("offset = %d, want %d for %q", s.Offset, pos.Offset, k.text)
-		}
-		if s.Line != pos.Line {
-			t.Errorf("line = %d, want %d for %q", s.Line, pos.Line, k.text)
-		}
-		if s.Column != pos.Column {
-			t.Errorf("column = %d, want %d for %q", s.Column, pos.Column, k.text)
+		if k.tok != Comment {
+			if s.Offset != pos.Offset {
+				t.Errorf("offset = %d, want %d for %q", s.Offset, pos.Offset, k.text)
+			}
+			if s.Line != pos.Line {
+				t.Errorf("line = %d, want %d for %q", s.Line, pos.Line, k.text)
+			}
+			if s.Column != pos.Column {
+				t.Errorf("column = %d, want %d for %q", s.Column, pos.Column, k.text)
+			}
 		}
 		pos.Offset += 4 + len(k.text) + 1     // 4 tabs + token bytes + newline
 		pos.Line += countNewlines(k.text) + 1 // each token is on a new line
-		s.Scan()
+		if k.tok != Comment {
+			s.Scan()
+		}
 	}
 	// make sure there were no token-internal errors reported by scanner
 	if s.ErrorCount != 0 {
 		t.Errorf("%d errors", s.ErrorCount)
 	}
-}
-
-func TestScanZeroMode(t *testing.T) {
-	src := makeSource("%s\n")
-	str := src.String()
-	s := new(Scanner).Init(src)
-	s.Mode = 0       // don't recognize any token classes
-	s.Whitespace = 0 // don't skip any whitespace
-	tok := s.Scan()
-	for i, ch := range str {
-		if tok != ch {
-			t.Fatalf("%d. tok = %s, want %s", i, TokenString(tok), TokenString(ch))
-		}
-		tok = s.Scan()
-	}
-	if tok != EOF {
-		t.Fatalf("tok = %s, want EOF", TokenString(tok))
-	}
-	if s.ErrorCount != 0 {
-		t.Errorf("%d errors", s.ErrorCount)
-	}
-}
-
-func testScanSelectedMode(t *testing.T, mode uint, class rune) {
-	src := makeSource("%s\n")
-	s := new(Scanner).Init(src)
-	s.Mode = mode
-	tok := s.Scan()
-	for tok != EOF {
-		if tok < 0 && tok != class {
-			t.Fatalf("tok = %s, want %s", TokenString(tok), TokenString(class))
-		}
-		tok = s.Scan()
-	}
-	if s.ErrorCount != 0 {
-		t.Errorf("%d errors", s.ErrorCount)
-	}
-}
-
-func TestScanSelectedMask(t *testing.T) {
-	testScanSelectedMode(t, 0, 0)
-	testScanSelectedMode(t, ScanIdents, Ident)
-	// Don't test ScanInts and ScanNumbers since some parts of
-	// the floats in the source look like (illegal) octal ints
-	// and ScanNumbers may return either Int or Float.
-	testScanSelectedMode(t, ScanChars, Char)
-	testScanSelectedMode(t, ScanStrings, String)
-	testScanSelectedMode(t, SkipComments, 0)
-	testScanSelectedMode(t, ScanComments, Comment)
-}
-
-func TestScanCustomIdent(t *testing.T) {
-	const src = "faab12345 a12b123 a12 3b"
-	s := new(Scanner).Init(strings.NewReader(src))
-	// ident = ( 'a' | 'b' ) { digit } .
-	// digit = '0' .. '3' .
-	// with a maximum length of 4
-	s.IsIdentRune = func(ch rune, i int) bool {
-		return i == 0 && (ch == 'a' || ch == 'b') || 0 < i && i < 4 && '0' <= ch && ch <= '3'
-	}
-	checkTok(t, s, 1, s.Scan(), 'f', "f")
-	checkTok(t, s, 1, s.Scan(), Ident, "a")
-	checkTok(t, s, 1, s.Scan(), Ident, "a")
-	checkTok(t, s, 1, s.Scan(), Ident, "b123")
-	checkTok(t, s, 1, s.Scan(), Int, "45")
-	checkTok(t, s, 1, s.Scan(), Ident, "a12")
-	checkTok(t, s, 1, s.Scan(), Ident, "b123")
-	checkTok(t, s, 1, s.Scan(), Ident, "a12")
-	checkTok(t, s, 1, s.Scan(), Int, "3")
-	checkTok(t, s, 1, s.Scan(), Ident, "b")
-	checkTok(t, s, 1, s.Scan(), EOF, "")
 }
 
 func TestScanNext(t *testing.T) {
@@ -400,26 +330,6 @@ func TestScanNext(t *testing.T) {
 	checkTok(t, s, 3, s.Scan(), -1, "")
 	if s.ErrorCount != 0 {
 		t.Errorf("%d errors", s.ErrorCount)
-	}
-}
-
-func TestScanWhitespace(t *testing.T) {
-	var buf bytes.Buffer
-	var ws uint64
-	// start at 1, NUL character is not allowed
-	for ch := byte(1); ch < ' '; ch++ {
-		buf.WriteByte(ch)
-		ws |= 1 << ch
-	}
-	const orig = 'x'
-	buf.WriteByte(orig)
-
-	s := new(Scanner).Init(&buf)
-	s.Mode = 0
-	s.Whitespace = ws
-	tok := s.Scan()
-	if tok != orig {
-		t.Errorf("tok = %s, want %s", TokenString(tok), TokenString(orig))
 	}
 }
 
@@ -589,28 +499,6 @@ func TestPos(t *testing.T) {
 	// after EOF position doesn't change
 	for i := 10; i > 0; i-- {
 		checkScanPos(t, s, 22, 4, 1, EOF)
-	}
-	if s.ErrorCount != 0 {
-		t.Errorf("%d errors", s.ErrorCount)
-	}
-
-	// positions after calling Scan
-	s = new(Scanner).Init(strings.NewReader("abc\n本語\n\nx"))
-	s.Mode = 0
-	s.Whitespace = 0
-	checkScanPos(t, s, 0, 1, 1, 'a')
-	s.Peek() // peek doesn't affect the position
-	checkScanPos(t, s, 1, 1, 2, 'b')
-	checkScanPos(t, s, 2, 1, 3, 'c')
-	checkScanPos(t, s, 3, 1, 4, '\n')
-	checkScanPos(t, s, 4, 2, 1, '本')
-	checkScanPos(t, s, 7, 2, 2, '語')
-	checkScanPos(t, s, 10, 2, 3, '\n')
-	checkScanPos(t, s, 11, 3, 1, '\n')
-	checkScanPos(t, s, 12, 4, 1, 'x')
-	// after EOF position doesn't change
-	for i := 10; i > 0; i-- {
-		checkScanPos(t, s, 13, 4, 2, EOF)
 	}
 	if s.ErrorCount != 0 {
 		t.Errorf("%d errors", s.ErrorCount)
