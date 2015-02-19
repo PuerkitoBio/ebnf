@@ -25,6 +25,7 @@ package ebnf
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"unicode"
 	"unicode/utf8"
 
@@ -201,7 +202,13 @@ func (v *verifier) verifyExpr(expr Expression, lexical bool) {
 			v.error(x.Pos(), "reference to non-lexical production "+x.String)
 		}
 	case *Token:
-		// nothing to do for now
+		// if the token is a regular expression, validate that the
+		// expression is valid.
+		if x.Regexp {
+			if _, err := regexp.Compile(x.String); err != nil {
+				v.error(x.Pos(), "invalid regular expression /"+x.String+"/ : "+err.Error())
+			}
+		}
 	case *Range:
 		i := v.verifyChar(x.Begin)
 		j := v.verifyChar(x.End)

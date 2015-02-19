@@ -436,9 +436,8 @@ func (s *Scanner) scanRawString() {
 	}
 }
 
-func (s *Scanner) scanRegexp() {
+func (s *Scanner) scanRegexp(ch rune) {
 	// character after the opening `/` is already read to check for comment
-	ch := s.next()
 	escaped := false
 	for ch != '/' || escaped {
 		if ch == '\n' || ch < 0 {
@@ -558,7 +557,7 @@ redo:
 				goto redo
 			}
 			// otherwise, scan a literal regular expression
-			s.scanRegexp()
+			s.scanRegexp(ch)
 			tok = Regexp
 			ch = s.next()
 		case '`':

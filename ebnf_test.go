@@ -51,6 +51,10 @@ var badGrammars = []string{
 	`Program = {} .`,
 }
 
+var invalidGrammars = []string{
+	`Program = /\pzz/ .`,
+}
+
 func checkGood(t *testing.T, src string) {
 	grammar, err := Parse("", bytes.NewBuffer([]byte(src)))
 	if err != nil {
@@ -70,11 +74,25 @@ func checkBad(t *testing.T, src string) {
 	t.Log(err)
 }
 
+func checkInvalid(t *testing.T, src string) {
+	grammar, err := Parse("", bytes.NewBuffer([]byte(src)))
+	if err != nil {
+		t.Errorf("Parse(%s) failed: %v", src, err)
+		return
+	}
+	if err = Verify(grammar, "Program"); err == nil {
+		t.Errorf("Verify(%s) succeeded, wanted error", src)
+	}
+}
+
 func TestGrammars(t *testing.T) {
 	for _, src := range goodGrammars {
 		checkGood(t, src)
 	}
 	for _, src := range badGrammars {
 		checkBad(t, src)
+	}
+	for _, src := range invalidGrammars {
+		checkInvalid(t, src)
 	}
 }
