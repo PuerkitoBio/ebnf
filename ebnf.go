@@ -2,19 +2,27 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Package ebnf is a library for EBNF grammars. The input is text ([]byte)
+// Package ebnf is a library for EBNF grammars. The input is utf8 text
 // satisfying the following grammar (represented itself in EBNF):
 //
-//	Production  = name "=" [ Expression ] "." .
-//	Expression  = Alternative { "|" Alternative } .
-//	Alternative = Term { Term } .
-//	Term        = name | token [ "…" token ] | Group | Option | Repetition .
-//	Group       = "(" Expression ")" .
-//	Option      = "[" Expression "]" .
-//	Repetition  = "{" Expression "}" .
+// Production  = name "=" [ Expression ] "." .
+// Expression  = Alternative { "|" Alternative } .
+// Alternative = Term { Term } .
+// Term        = name | regexp_lit | str_lit | char_lit [ "…" char_lit ] | Group | Option | Repetition .
+// Group       = "(" Expression ")" .
+// Option      = "[" Expression "]" .
+// Repetition  = "{" Expression "}" .
+//
+// name        = /[\pL_][\pL\pNd_]*/ . // unicode letter or underscore, then add unicode digits
+// regexp_lit  = /\/[^\n\/]+\// .      // TODO, missing escaped slash
+// str_lit     = .      // TODO, same as Go
+// char_lit    = .      // TODO, same as Go
 //
 // A name is a Go identifier, a token is a Go string, and comments
 // and white space follow the same rules as for the Go language.
+// Regular expression literals are between forward slashes, and are
+// validated as valid expressions according to the Go language's regexp
+// syntax when the Verify function is called on a parsed grammar.
 // Production names starting with an uppercase Unicode letter denote
 // non-terminal productions (i.e., productions which allow white-space
 // and comments between tokens); all other production names denote
@@ -268,6 +276,7 @@ func (v *verifier) verify(grammar Grammar, start string) {
 //	- all productions used are defined
 //	- all productions defined are used when beginning at start
 //	- lexical productions refer only to other lexical productions
+//  - regular expression literals are valid
 //
 // Position information is interpreted relative to the file set fset.
 //
