@@ -60,7 +60,6 @@ const (
 	RawString
 	Comment
 	Regexp
-	skipComment
 )
 
 var tokenString = map[rune]string{
@@ -83,8 +82,7 @@ func TokenString(tok rune) string {
 	return fmt.Sprintf("%q", string(tok))
 }
 
-// GoWhitespace is the default value for the Scanner's Whitespace field.
-// Its value selects Go's white space characters.
+// GoWhitespace selects Go's white space characters.
 const GoWhitespace = 1<<'\t' | 1<<'\n' | 1<<'\r' | 1<<' '
 
 const bufLen = 1024 // at least utf8.UTFMax
@@ -248,20 +246,6 @@ func (s *Scanner) next() rune {
 		s.column = 0
 	}
 
-	return ch
-}
-
-// Next reads and returns the next Unicode character.
-// It returns EOF at the end of the source. It reports
-// a read error by calling s.Error, if not nil; otherwise
-// it prints an error message to os.Stderr. Next does not
-// update the Scanner's Position field; use Pos() to
-// get the current position.
-func (s *Scanner) Next() rune {
-	s.tokPos = -1 // don't collect token text
-	s.Line = 0    // invalidate token position
-	ch := s.Peek()
-	s.ch = s.next()
 	return ch
 }
 
@@ -452,6 +436,24 @@ func (s *Scanner) scanRawString() {
 	}
 }
 
+func (s *Scanner) scanRegexp() {
+	// character after the opening `/` is already read to check for comment
+	ch := s.next()
+	escaped := false
+	for ch != '/' || escaped {
+		if ch == '\n' || ch < 0 {
+			s.error("regexp literal not terminated")
+			return
+		}
+		if ch == '\\' && !escaped {
+			escaped = true
+		} else {
+			escaped = false
+		}
+		ch = s.next()
+	}
+}
+
 func (s *Scanner) scanChar() {
 	if s.scanString('\'') != 1 {
 		s.error("illegal char literal")
@@ -555,6 +557,10 @@ redo:
 				ch = s.scanComment(ch)
 				goto redo
 			}
+			// otherwise, scan a literal regular expression
+			s.scanRegexp()
+			tok = Regexp
+			ch = s.next()
 		case '`':
 			s.scanRawString()
 			tok = String
@@ -616,4 +622,18 @@ func (s *Scanner) TokenText() string {
 	s.tokBuf.Write(s.srcBuf[s.tokPos:s.tokEnd])
 	s.tokPos = s.tokEnd // ensure idempotency of TokenText() call
 	return s.tokBuf.String()
+}
+
+// Next reads and returns the next Unicode character.
+// It returns EOF at the end of the source. It reports
+// a read error by calling s.Error, if not nil; otherwise
+// it prints an error message to os.Stderr. Next does not
+// update the Scanner's Position field; use Pos() to
+// get the current position.
+func (s *Scanner) Next() rune {
+	s.tokPos = -1 // don't collect token text
+	s.Line = 0    // invalidate token position
+	ch := s.Peek()
+	s.ch = s.next()
+	return ch
 }

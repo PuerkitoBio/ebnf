@@ -57,6 +57,50 @@ var segmentList = [][]string{
 	{"Hello", ", ", "", "World", "!"},
 }
 
+func TestRegexpErrors(t *testing.T) {
+	data := `/non-terminated
+	// comment
+	/eof`
+
+	s := new(Scanner).Init(strings.NewReader(data))
+	want := "regexp literal not terminated"
+	cnt := 0
+	s.Error = func(s *Scanner, msg string) {
+		if msg != want {
+			t.Errorf("want %q, got %q", want, msg)
+		}
+		cnt++
+	}
+	for tok := s.Scan(); tok != EOF; tok = s.Scan() {
+	}
+	if cnt != 2 {
+		t.Errorf("want %d errors, got %d", 2, cnt)
+	}
+}
+
+func TestRegexp(t *testing.T) {
+	cases := []string{
+		`/a/`,
+		`/ab/`,
+		`/abc/`,
+		`/[a-zA-Z]+[0-9]*/`,
+		`/[a-zA-Z]+\n?/`,
+		`/[a-zA-Z]+\n?\/\\/`,
+	}
+	for _, c := range cases {
+		s := new(Scanner).Init(strings.NewReader(c))
+		if tok := s.Scan(); tok != Regexp {
+			t.Errorf("%q: want token %q, got %q", c, TokenString(Regexp), TokenString(tok))
+		}
+		if text := s.TokenText(); text != c {
+			t.Errorf("want %q, got %q", c, text)
+		}
+		if n := s.ErrorCount; n > 0 {
+			t.Errorf("%d errors", n)
+		}
+	}
+}
+
 func TestNext(t *testing.T) {
 	for _, s := range segmentList {
 		readRuneSegments(t, s)
@@ -219,10 +263,13 @@ var tokenList = []token{
 	{'\x01', "\x01"},
 	{' ' - 1, string(' ' - 1)},
 	{'+', "+"},
-	{'/', "/"},
+	{'\\', "\\"},
 	{'.', "."},
 	{'~', "~"},
 	{'(', "("},
+
+	{Comment, "// regular expression literals"},
+	{Regexp, `/a/`},
 }
 
 func makeSource(pattern string) *bytes.Buffer {
