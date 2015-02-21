@@ -1,0 +1,12 @@
+Production  = name "=" [ Expression ] "." .
+Expression  = Alternative { "|" Alternative } .
+Alternative = Term { Term } .
+Term        = name | regexp_lit | str_lit | char_lit [ "…" char_lit ] | Group | Option | Repetition .
+Group       = "(" Expression ")" .
+Option      = "[" Expression "]" .
+Repetition  = "{" Expression "}" .
+
+name        = /[\pL_][\pL\pNd_]*/ . // unicode letter or underscore, then add unicode digits
+regexp_lit  = /\/[^\n\/]+\// .      // TODO, missing escaped slash
+str_lit     = "z" .      // TODO, same as Go
+char_lit    = "c" .      // TODO, same as Go
