@@ -8,5 +8,5 @@ Repetition  = "{" Expression "}" .
 
 name        = /[\pL_][\pL\pNd_]*/ . // unicode letter or underscore, then add unicode digits
 regexp_lit  = /\/[^\n\/]+\// .      // TODO, missing escaped slash
-str_lit     = "z" .      // TODO, same as Go
-char_lit    = "c" .      // TODO, same as Go
+str_lit     = .      // TODO, same as Go
+char_lit    = .      // TODO, same as Go

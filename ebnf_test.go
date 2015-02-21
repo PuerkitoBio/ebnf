@@ -6,6 +6,7 @@ package ebnf
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 )
 
@@ -37,6 +38,12 @@ var goodGrammars = []string{
 	 La = "a" .
 	 Ti = ti .
 	 ti = "b" .`,
+
+	`Program = Start | Empty .
+	  Start = ( Token [ Token "," Token ] ) .
+	  Token = empty .
+	  Empty = . 
+	  empty = . // with a trailing comment`,
 }
 
 var badGrammars = []string{
@@ -63,6 +70,13 @@ func checkGood(t *testing.T, src string) {
 	}
 	if err = Verify(grammar, "Program"); err != nil {
 		t.Errorf("Verify(%s) failed: %v", src, err)
+	}
+	for k, v := range grammar {
+		if strings.ToLower(k) == "empty" {
+			if v.Expr != nil {
+				t.Errorf("Non-empty production named `empty`: %v", v)
+			}
+		}
 	}
 }
 

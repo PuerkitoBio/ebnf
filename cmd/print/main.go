@@ -38,7 +38,9 @@ func printProduction(e ebnf.Expression, indent string) {
 	switch e := e.(type) {
 	case *ebnf.Production:
 		fmt.Println(e.Name)
-		printProduction(e.Expr, indent+strings.Repeat(" ", 2))
+		if e.Expr != nil {
+			printProduction(e.Expr, indent+strings.Repeat(" ", 2))
+		}
 	case ebnf.Alternative:
 		fmt.Println("alternative")
 		for _, alt := range e {
